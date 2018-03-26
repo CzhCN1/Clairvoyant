@@ -3,6 +3,8 @@ import { Skye, SkyeConfig } from './statistics/index';
 import { Http, Common } from './utils';
 import { Config } from './config/index';
 
+interface Window { [key: string]: any; }
+
 export class FrontEndMonitor {
     public clairvoyant: Clairvoyant;    // 异常监控
     public skye: Skye;                  // 点击统计
@@ -17,11 +19,20 @@ export class FrontEndMonitor {
         // 实例化异常监控
         this.clairvoyant = new Clairvoyant(appId, appVersion);
         // 实例化点击统计
-        this.skye = new Skye(appId, appVersion);
+        let aps = this.commonService.getUrlQueryParam(location.href, 'aps');    // 获取url中的aps参数
+        this.skye = new Skye(appId, appVersion, aps);
         // 初始化配置
         this.initConfig(appId);
         // PV统计
-        this.pvRecord(appId);
+        this.pvRecord(appId, aps);
+        // Cookies 默认浏览器关闭超时  标定一次用户行为
+        // if (!document.cookie || document.cookie.indexOf('requestId') == -1) {
+        //     // 生成requestId 保存在缓存中
+        //     document.cookie = 'requestId=' + this.commonService.createUUID(16) + ';domain=d.quyiyuan.com';
+        // }
+        // 在window对象上绑定
+        (window as any)['clairvoyant'] = this.clairvoyant;
+        (window as any)['skye'] = this.skye;
     }
     
     /**
@@ -148,8 +159,10 @@ export class FrontEndMonitor {
      * @param {Function} [feedback] 回调函数
      * @memberof FrontEndMonitor
      */
-    private pvRecord(appId: string, feedback?: Function): void {
-        let url = Config.SERVER_URL + Config.PV_RECORD + '?appId=' + appId;
+    private pvRecord(appId: string, aps: string, feedback?: Function): void {
+        let url = Config.SERVER_URL + Config.PV_RECORD 
+            + '?appId=' + appId 
+            + ((aps && aps.length > 0) ? ('&aps=' + aps) : '');
         Promise.resolve(this.httpService.getRequest(url)).then((resp) => {
             if (feedback) {
                 feedback(resp);

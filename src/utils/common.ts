@@ -100,4 +100,50 @@ export class Common {
     public appIDCheck(appId: string): boolean {
         return (appId && /^\w{32}$/.test(appId)) ? true : false;
     }
+
+    /**
+     * 生成UUID
+     * 
+     * @param {number} [len] 默认长度为8
+     * @returns {string} 
+     * @memberof Common
+     */
+    public createUUID(len?: number): string {
+        let chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
+        let uuid = [];
+        len = len || 8;
+        for (let i = 0; i < len - 3; i++) {
+            let idx = Math.floor(Math.random() * chars.length);
+            uuid[i] = chars[idx];
+        }
+        // 取时间后三位毫秒数作为uuid后三位
+        let time = Date.now().toString();
+        uuid = uuid.concat(time.substr(10).split(''));
+        return uuid.join('');
+    }
+
+    /**
+     * 根据key获取URL中的查询参数
+     * 
+     * @param {string} url 
+     * @param {string} queryKey 
+     * @returns 
+     * @memberof Common
+     */
+    public getUrlQueryParam(url: string, queryKey: string) {
+        let urlParts = url.split('?');
+        if (!urlParts || urlParts.length < 2) {
+            return '';
+        }
+        let queryStr = urlParts[1];
+        if (queryStr.indexOf(queryStr) == -1) {
+            return '';
+        }
+        let reg = new RegExp(queryKey + '=([\\w%\\.]*)&?');
+        let regRes = reg.exec(queryStr);
+        if (!regRes || regRes.length < 2) {
+            return '';
+        }
+        return regRes[1];
+    }
 }

@@ -255,7 +255,7 @@ export class Clairvoyant {
         env.userAgent = this.env.getUserAgent();
         env.screenSize = this.env.getScreenSize();
         env.prodEnv = this.env.isProdEnv(this.prodEnvHost) ? '1' : '0';     // 1 生产环境， 0 非生产环境
-
+        env.browserType = this.env.getBrowserType();
         this.environment = env;
     }
 

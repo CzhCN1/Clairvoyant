@@ -3,12 +3,12 @@ const path = require('path');
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 
 const config = {
-    // entry: path.resolve(__dirname + '/src/app.ts'),
-    entry: path.resolve(__dirname + '/src/utils/index.ts'),
+    entry: path.resolve(__dirname + '/src/app.ts'),
+    // entry: path.resolve(__dirname + '/src/utils/index.ts'),
     output: {
         filename: 'bundle.js',
         path: path.resolve(__dirname + '/dist'),
-        library: 'monitor',
+        library: 'KyeeMonitor',
         libraryTarget: 'umd',
         umdNamedDefine: true
     },
@@ -21,7 +21,7 @@ const config = {
         ]
     },
     plugins: [
-        // new UglifyJsPlugin()
+        new UglifyJsPlugin()
     ]
 };
 

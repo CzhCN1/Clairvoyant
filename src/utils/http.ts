@@ -36,6 +36,7 @@ export class Http {
                 }
             };
             xhr.open('GET', url, true);
+            xhr.withCredentials = true;
             xhr.setRequestHeader('Content-Type', 'application/json');
             // 如果有超时时间
             if (this.HttpConfig && this.HttpConfig.timeout) {
@@ -47,7 +48,7 @@ export class Http {
     }
 
     /**
-     * POST请求  请求头为application/json
+     * POST请求  请求头为application/json
      *
      * @param {string} url
      * @param {string} paramJson
@@ -63,6 +64,7 @@ export class Http {
                 }
             };
             xhr.open('POST', url, true);
+            xhr.withCredentials = true;
             xhr.setRequestHeader('Content-Type', 'application/json');
             // 如果有超时时间
             if (this.HttpConfig && this.HttpConfig.timeout) {

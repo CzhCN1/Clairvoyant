@@ -10,7 +10,8 @@ export interface SkyeConfig {
 export class Skye {
     private appId: string;          // 应用号
     private appVersion: string;     // 应用版本号
-    
+    private aps: string;            // 应用页面来源
+
     private active = false;         // 使能开关
     private phoneKey = '';          // 手机缓存位置
 
@@ -23,18 +24,21 @@ export class Skye {
     private commonService: Common = new Common();
     private httpService: Http = new Http();
 
+    private behaviorRecord: any[] = []; // 记录用户行为
+
     constructor(
-        appId: string,
-        appVersion?: string
+        appId: string,  
+        appVersion?: string,
+        aps?: string    // 
     ) {
         this.options = {
-            selector: '_kyee_statistics', // 点击触发的选择器，支持id, class
             prefix: '_kyee_',           // 定义标签参数的前缀
-            delay_attr: '_kyee_delay',  // 标签中指定是否延迟上报, ture延时,false立即上报，默认true
+            delay_attr: 'delay',  // 标签中指定是否延迟上报, ture延时,false立即上报，默认true
             limit: 10
         };
         this.appId = appId;
         this.appVersion = appVersion || (localStorage && localStorage.appVersion) || 'Unknown';
+        this.aps = aps || '';
         this.time =  Date.now();
         // 启动初始化
         this.initMonitor();
@@ -89,6 +93,20 @@ export class Skye {
     }
 
     /**
+     * 路由变化记录
+     * 
+     * @param {string} hash 
+     * @memberof Skye
+     */
+    public routeRecord(hash: string) {
+        this.behaviorRecord.push({
+            time: Date.now(),
+            operate: 'enter',
+            route: hash
+        });
+    }
+
+    /**
      * 初始化监控器
      * 
      * @private
@@ -105,13 +123,63 @@ export class Skye {
             }
             this.time = Date.now();
             let param = this.getAttrParam(eventObj);    // 获取标签参数
-            this.addRecord(param);     // 添加事件记录
+            this.addRecord(param);     // 添加点击事件记录
         });
 
         // 在即将离开当前页面（刷新或关闭）时触发,将未发送的数据立即上报
-        window.onbeforeunload = () => {
-            this.sendData();
+        // 在页面关闭时发送用户行为记录
+        window.addEventListener('beforeunload', () => {
+            if (this.active) {
+                this.sendData();
+                this.sendBehavior();
+            }
+            // 延时保证请求发送成功
+            for (let i = 0; i < 10000; i++) {
+                for (let j = 0; j < 65536; j++) {
+                    continue;
+                }
+            }
+        }, false);
+    }
+
+    /**
+     * 发送行为记录请求
+     * 
+     * @private
+     * @param {Function} feedback 
+     * @memberof Skye
+     */
+    private sendBehavior(feedback?: Function) {
+        if (this.behaviorRecord && this.behaviorRecord.length > 0) {
+            // 生成记录日志
+            let topic = this. buildBehaviorTopic();
+            // 清空行为记录栈
+            this.behaviorRecord = [];
+            // 拼接后台接口URL
+            let url = Config.SERVER_URL + Config.BEHAVIOR_RECORD;
+            // 发送请求
+            Promise.resolve(this.httpService.postRequest(url, topic)).then((resp) => {
+                if (feedback) { feedback(resp); }
+            });
+        }
+    }
+
+    /**
+     * 构建行为记录日志
+     * 
+     * @private
+     * @returns 
+     * @memberof Skye
+     */
+    private buildBehaviorTopic() {
+        let topic = {
+            appId: this.appId,
+            appVersion: this.appVersion,
+            phoneNumber: this.commonService.getPhoneNumber(this.phoneKey),
+            record: this.behaviorRecord,
+            aps: this.aps
         };
+        return JSON.stringify(topic);
     }
 
     /**
@@ -129,7 +197,7 @@ export class Skye {
             for (let i = 0; i < attrs.length; i++) {
                 let name = attrs[i].name;
                 if (name.indexOf(options.prefix) == 0) {
-                    if (name == options.delay_attr && attrs[i].value === 'false') {
+                    if (name == (options.prefix + options.delay_attr) && attrs[i].value === 'false') {
                         params['delay'] = false;
                         continue;
                     }
@@ -152,7 +220,7 @@ export class Skye {
     private addRecord(param: any) {
         // 记录关键属性值
         let nodeId = param.id;
-        let delay: boolean = param.delay;   // false为立即上报
+        let delay: boolean = param.delay == false ? false : true;   // false为立即上报
         // 删除已记录的属性
         delete param.id;
         delete param.delay;
@@ -160,13 +228,25 @@ export class Skye {
         this.recordStack.push({
             anchorId: nodeId,
             time: this.time,
-            param: JSON.stringify(param)
+            // param: JSON.stringify(param)
         });
 
-        // 如果是需要立即发送的记录
+        // 如果是需要立即发送的记录
         if (delay === false) {
             this.sendData();
         }
+
+        // 如果队列长度达到长度限制
+        if (this.recordStack.length >= this.options.limit) {
+            this.sendData();
+        }
+        
+        // 记录用户点击行为
+        this.behaviorRecord.push({
+            time: Date.now(),
+            operate: 'click',
+            anchorId: nodeId
+        });
     }
 
     /**
@@ -179,8 +259,8 @@ export class Skye {
     private buildTopic(): string {
         let topic = {
             appId: this.appId,
-            appVersion: this.appVersion,
-            phoneNumber: this.commonService.getPhoneNumber(this.phoneKey),
+            // appVersion: this.appVersion,
+            // phoneNumber: this.commonService.getPhoneNumber(this.phoneKey),
             record: this.recordStack
         };
         return JSON.stringify(topic);
@@ -290,13 +370,14 @@ export class Skye {
      * @memberof Skye
      */
     private getMonitorNode(evt: any): Node {
+        let prefix = this.options.prefix;
         let path = this.eventPath(evt);
         let target;
         for (let i = 0; i < path.length; i++) {
             if (path[i].tagName.toLowerCase() === 'body') {
                 break;
             }
-            if (path[i].id === this.options.selector || path[i].className.indexOf(this.options.selector) != -1) {
+            if (path[i].getAttribute(prefix + 'id')) {
                 target = path[i];
                 break;
             }
