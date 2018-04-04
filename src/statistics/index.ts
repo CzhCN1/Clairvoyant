@@ -24,7 +24,7 @@ export class Skye {
     private commonService: Common = new Common();
     private httpService: Http = new Http();
 
-    private behaviorRecord: any[] = []; // 记录用户行为
+    private behaviorRecord: NewArray; // 记录用户行为
 
     constructor(
         appId: string,  
@@ -42,6 +42,12 @@ export class Skye {
         this.time =  Date.now();
         // 启动初始化
         this.initMonitor();
+        // 对behaviorRecord的push操作进行监控
+        let newArr = new NewArray();
+        newArr.__proto__ = NewArray.prototype;
+        this.behaviorRecord = newArr;
+        // 判断缓存中是否存在行为记录历史
+        this.checkBehaviorHis();
     }
 
     /**
@@ -154,11 +160,15 @@ export class Skye {
             // 生成记录日志
             let topic = this. buildBehaviorTopic();
             // 清空行为记录栈
-            this.behaviorRecord = [];
+            let newArr = new NewArray();
+            newArr.__proto__ = NewArray.prototype;
+            this.behaviorRecord = newArr;
             // 拼接后台接口URL
             let url = Config.SERVER_URL + Config.BEHAVIOR_RECORD;
             // 发送请求
             Promise.resolve(this.httpService.postRequest(url, topic)).then((resp) => {
+                // 如果请求发送成功，清除缓存记录
+                localStorage.removeItem('behaviorRecord');
                 if (feedback) { feedback(resp); }
             });
         }
@@ -383,5 +393,36 @@ export class Skye {
             }
         }
         return target;
+    }
+
+    /**
+     * 检察是否有历史行为记录
+     * 
+     * @private
+     * @memberof Skye
+     */
+    private checkBehaviorHis(): void {
+        let record = localStorage.getItem('behaviorRecord');
+        if (record) {
+            this.behaviorRecord = JSON.parse(record);
+            this.sendBehavior();
+            // 在响应之前立即清除，以免污染此次访问的行为记录
+            localStorage.removeItem('behaviorRecord');
+        }
+    }
+}
+
+class NewArray extends Array {
+    public __proto__: any;
+    constructor(args?: any) {
+        super(args);
+    }
+    push(args: any) {
+        let length = super.push(args);
+        let record = localStorage.getItem('behaviorRecord');
+        let recordList = record ? JSON.parse(record) : [];
+        recordList.push(args);
+        localStorage.setItem('behaviorRecord', JSON.stringify(recordList));
+        return length;
     }
 }
