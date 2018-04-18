@@ -73,16 +73,28 @@ export class Common {
             return null;
         }
         try {
+            let phoneNumber;
             let key = paramArr.shift();
             let storageStr = key ? localStorage.getItem(key) || sessionStorage.getItem(key) : '';
             // 如果只有缓存节点key
             if (paramArr.length == 0) {
-                return storageStr;
+                phoneNumber = storageStr;
+            } else {
+                // 认为手机号是对象中具体的属性
+                let storageObj = storageStr ? JSON.parse(storageStr) : null;
+                phoneNumber = this.objectUtils.getParamFromObject(storageObj, paramArr.join('.'));
             }
-            // 认为手机号是对象中具体的属性
-            let storageObj = storageStr ? JSON.parse(storageStr) : null;
-            let phoneNumber = this.objectUtils.getParamFromObject(storageObj, paramArr.join('.'));
-            return (phoneNumber && phoneNumber.length == 11) ? phoneNumber : null;
+            // phoneNumber是否为11位或者32位 （兼容趣医APP的aes-ecb加密）
+            if (phoneNumber && phoneNumber.length == 11) {
+                return phoneNumber;
+            } else if (phoneNumber && phoneNumber.length == 32) {
+                let aesjs = this.objectUtils.getParamFromObject(window, 'aesjs');
+                if (aesjs) {
+                    return this.aesDecrypt(aesjs, phoneNumber);
+                }
+            } else {
+                return null;
+            }
         } catch (error) {
             console.error('获取手机号失败');
             return null;
@@ -145,5 +157,41 @@ export class Common {
             return '';
         }
         return regRes[1];
+    }
+
+    /**
+     * aes-ecb解码
+     * 
+     * @private
+     * @param {*} aesjs 
+     * @param {string} str 
+     * @returns 
+     * @memberof Common
+     */
+    private aesDecrypt(aesjs: any, str: string) {
+        // AES-ECB解密模式
+        let key = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ];
+        let aesEcb = new aesjs.ModeOfOperation.ecb(key);
+        let encryptedBytes = aesjs.utils.hex.toBytes(str);
+        let decryptedBytes = aesEcb.decrypt(encryptedBytes);
+        // 判断是否包含padding
+        let lastChar = decryptedBytes[decryptedBytes.length - 1];
+        let isPadding = false;
+        if (lastChar < 16 && lastChar > 0) {
+            isPadding = true;
+            let tmpLen = decryptedBytes.length - 1;
+            for (let i = 1; i < lastChar; i++) {
+                if (decryptedBytes[tmpLen - i] != lastChar) {
+                    isPadding = false;
+                    break;
+                }
+            }
+        }
+        if (isPadding) {
+            let resArr = new Uint8Array(decryptedBytes.length - lastChar);
+            resArr.set(decryptedBytes.subarray(0, decryptedBytes.length - lastChar), 0);
+            decryptedBytes = resArr;
+        }
+        return aesjs.utils.utf8.fromBytes(decryptedBytes);
     }
 }
