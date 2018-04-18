@@ -100,8 +100,15 @@ export class Clairvoyant {
                 let error: any  = new Error(errMsg);
                 let stackArr = error.stack ? error.stack.split('\n') : [];
                 if (stackArr.length > 1) {
-                    stackArr[0] = stackArr[0].replace('Error', 'CustomError');  // 将堆栈信息中的 Error 替换为 CustomError
-                    stackArr.splice(1, 1);   // 去掉函数调用栈中SDK的调用信息
+                    // 兼容安卓及Chrome
+                    let firstLine = '' + stackArr[0];
+                    if (stackArr[0].startsWith('Error:')) {
+                        stackArr[0] = stackArr[0].replace('Error', 'CustomError');  // 将堆栈信息中的 Error 替换为 CustomError
+                        stackArr.splice(1, 1);   // 去掉函数调用栈中SDK的调用信息
+                    } else if (stackArr[0].indexOf('kyee-clairvoyant') > -1) {
+                    // 兼容iPhone及Safari
+                        stackArr.splice(0, 1);
+                    }
                     error.stack = stackArr.join('\n');
                 }
                 setTimeout(() => {
