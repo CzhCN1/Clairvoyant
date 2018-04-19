@@ -156,7 +156,7 @@ export class Clairvoyant {
         // 获取环境信息
         this.getEnvironment();
         // 绑定onerror全局监听
-        window.onerror = this.errorListener;
+        window.onerror = this.errorListener.bind(this);
     }
 
     /**
