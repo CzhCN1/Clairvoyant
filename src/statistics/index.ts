@@ -27,19 +27,19 @@ export class Skye {
     private behaviorRecord: NewArray; // 记录用户行为
 
     constructor(
-        appId: string,  
+        appId: string,
         appVersion?: string,
         aps?: string    // 
     ) {
         this.options = {
-            prefix: '_kyee_',           // 定义标签参数的前缀
+            prefix: '_kyee_',           // 定义标签参数的前缀
             delay_attr: 'delay',  // 标签中指定是否延迟上报, ture延时,false立即上报，默认true
-            limit: 10
+            limit: 5
         };
         this.appId = appId;
         this.appVersion = appVersion || (localStorage && localStorage.appVersion) || 'Unknown';
         this.aps = aps || '';
-        this.time =  Date.now();
+        this.time = Date.now();
         // 启动初始化
         this.initMonitor();
         // 对behaviorRecord的push操作进行监控
@@ -105,6 +105,9 @@ export class Skye {
      * @memberof Skye
      */
     public routeRecord(hash: string) {
+        if (!hash || (typeof hash != 'string')) {
+            return;
+        }
         this.behaviorRecord.push({
             time: Date.now(),
             operate: 'enter',
@@ -158,7 +161,7 @@ export class Skye {
     private sendBehavior(feedback?: Function) {
         if (this.behaviorRecord && this.behaviorRecord.length > 0) {
             // 生成记录日志
-            let topic = this. buildBehaviorTopic();
+            let topic = this.buildBehaviorTopic();
             // 清空行为记录栈
             let newArr = new NewArray();
             newArr.__proto__ = NewArray.prototype;
@@ -200,7 +203,7 @@ export class Skye {
      * @memberof Skye
      */
     private getAttrParam(clickObj: Node): any {
-        let params: any =  {};
+        let params: any = {};
         let options = this.options;
         if (clickObj && clickObj.attributes) {
             let attrs = clickObj.attributes;
@@ -250,7 +253,7 @@ export class Skye {
         if (this.recordStack.length >= this.options.limit) {
             this.sendData();
         }
-        
+
         // 记录用户点击行为
         this.behaviorRecord.push({
             time: Date.now(),
@@ -310,7 +313,7 @@ export class Skye {
      */
     private delegate(parentEle: HTMLElement, type: string, fn: Function): void {
         // 入参校验
-        if ( (typeof type !== 'string') || (typeof fn !== 'function')) {
+        if ((typeof type !== 'string') || (typeof fn !== 'function')) {
             return;
         }
         if (parentEle && document.addEventListener) {
@@ -337,19 +340,26 @@ export class Skye {
      * @memberof Skye
      */
     private eventPath(evt: any) {
-        // Chrome通过event.path直接获取
-        let path = (evt.composedPath && evt.composedPath()) || evt.path;
-        // 获取触发事件的原始事件源
-        let target = evt.target || evt.srcElement;
+        try {
+            // Chrome通过event.path直接获取
+            let path = (evt.composedPath && evt.composedPath()) || evt.path;
+            // 获取触发事件的原始事件源
+            let target = evt.target || evt.srcElement;
 
-        if (path != null) {
-            // Safari doesn't include Window, but it should.
-            return (path.indexOf(window) < 0) ? path.concat(window) : path;
-        }
-        if (target === window) {
+            if (path != null) {
+                // Safari doesn't include Window, but it should.
+                if (path && (typeof path.indexOf == 'function') && (typeof path.concat == 'function')) {
+                    return (path.indexOf(window) < 0) ? path.concat(window) : path;
+                }
+            }
+            if (target === window) {
+                return [window];
+            }
+            return [target].concat(this.getParents(target), window);
+        } catch (error) {
+            console.error('获取事件触发路径失败');
             return [window];
         }
-        return [target].concat(this.getParents(target), window);
     }
 
     /**
